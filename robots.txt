@@ -2,3 +2,5 @@ User-agent: *
 Disallow: /ultimate
 Disallow: /admin
 Disallow: /admin.html
+
+Sitemap: https://www.apm4oyo.com/sitemap.xml
