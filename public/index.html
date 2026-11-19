@@ -1226,6 +1226,11 @@
       transform: scale(.97);
     }
 
+    .voter-method-card-none {
+      grid-column: 1 / -1;
+      min-height: 100px;
+    }
+
     .voter-method-card[aria-pressed="true"] {
       background: rgba(255,255,255,.2);
       border-color: #6ff8bb;
@@ -3012,7 +3017,7 @@
           <div class="form-head">
             <p class="eyebrow">Join the APM4Oyo Network</p>
             <h2>Voters benefit form</h2>
-            <p class="lede">Scan or upload your voter's card, then fill in your details to join the APM4Oyo network in your ward.</p>
+            <p class="lede">Fill in your details to join the APM4Oyo network in your ward. Scan or upload your voter's card if you have one, or choose "I don't have a voter's card" to register without it.</p>
           </div>
 
           <form class="reg-form" id="pci-form">
@@ -3099,10 +3104,10 @@
               </select>
             </div>
 
-            <!-- ── Voter card scan or upload ─────────────────────── -->
+            <!-- ── Voter card status, scan or upload ─────────────── -->
             <div class="voter-card-block voter-card-offset">
               <p class="voter-card-question">Voter's card details</p>
-              <div class="voter-method-row" role="group" aria-label="Choose how to add your voter's card">
+              <div class="voter-method-row" role="group" aria-label="Scan or upload your voter's card, or register without one">
                 <button type="button" class="voter-method-card" id="voter-scan-btn" aria-pressed="false">
                   <span class="voter-method-icon" aria-hidden="true">▣</span>
                   <strong>Scan voter card</strong>
@@ -3112,6 +3117,10 @@
                   <span class="voter-method-icon" aria-hidden="true">↑</span>
                   <strong>Upload voter card</strong>
                   <span>Choose an image or PDF from your device</span>
+                </button>
+                <button type="button" class="voter-method-card voter-method-card-none" id="voter-none-btn" aria-pressed="false">
+                  <strong>I don't have a voter's card</strong>
+                  <span>Continue without scanning or uploading a card</span>
                 </button>
               </div>
               <input type="hidden" id="f-has-voter-card" name="hasVoterCard" value="">
@@ -3134,7 +3143,7 @@
                     name="voterCardFile"
                     type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
-                can     class="upload-input">
+                    class="upload-input">
                 </label>
               </div>
               <div class="upload-preview" id="upload-preview" aria-live="polite"></div>
@@ -3332,6 +3341,7 @@
         /* -- Voter card scan / upload ------------------------------------ */
         var btnVoterScan   = document.getElementById('voter-scan-btn');
         var btnVoterUpload = document.getElementById('voter-upload-btn');
+        var btnVoterNone   = document.getElementById('voter-none-btn');
         var uploadPanel    = document.getElementById('voter-upload-panel');
         var hasVoterInput  = document.getElementById('f-has-voter-card');
         var voterFileInput = document.getElementById('f-voter-card-file');
@@ -3341,6 +3351,7 @@
         var cameraStatus   = document.getElementById('voter-camera-status');
         var captureButton  = document.getElementById('voter-capture-btn');
         var cameraStream   = null;
+        var cameraRequestId = 0;
         var selectedVoterFile = null;
         var selectedVoterMethod = '';
         var voterFileProcessId = 0;
@@ -3349,6 +3360,7 @@
         var TARGET_CARD_BYTES = MAX_CARD_UPLOAD_BYTES - 128 * 1024;
 
         function stopVoterCamera() {
+          cameraRequestId++;
           if (cameraStream) {
             cameraStream.getTracks().forEach(function (track) { track.stop(); });
             cameraStream = null;
@@ -3373,11 +3385,13 @@
             if (method !== 'scan') stopVoterCamera();
           }
           selectedVoterMethod = method;
-          hasVoterInput.value = 'yes';
+          hasVoterInput.value = method === 'none' ? 'no' : 'yes';
           btnVoterScan.setAttribute('aria-pressed', method === 'scan' ? 'true' : 'false');
           btnVoterUpload.setAttribute('aria-pressed', method === 'upload' ? 'true' : 'false');
+          btnVoterNone.setAttribute('aria-pressed', method === 'none' ? 'true' : 'false');
           uploadPanel.classList.toggle('active', method === 'upload');
           cameraPanel.hidden = method !== 'scan' || !cameraStream;
+          document.getElementById('form-status').textContent = '';
         }
 
         /* Keep image processing feedback out of the form UI. */
@@ -3531,7 +3545,7 @@
         }
 
         async function processVoterFile(file) {
-          if (!file) return;
+          if (!file || hasVoterInput.value !== 'yes') return;
           var processId = ++voterFileProcessId;
           var submitButton = pciForm.querySelector('.submit-btn');
           selectedVoterFile = null;
@@ -3610,6 +3624,7 @@
         btnVoterScan.addEventListener('click', function () {
           selectVoterMethod('scan');
           stopVoterCamera();
+          var requestId = cameraRequestId;
           cameraPanel.hidden = false;
           cameraStatus.textContent = 'Requesting camera access…';
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -3620,11 +3635,16 @@
             audio: false,
             video: { facingMode: { ideal: 'environment' } }
           }).then(function (stream) {
+            if (requestId !== cameraRequestId || selectedVoterMethod !== 'scan') {
+              stream.getTracks().forEach(function (track) { track.stop(); });
+              return;
+            }
             cameraStream = stream;
             cameraPreview.srcObject = stream;
             cameraStatus.textContent = 'Position the card in the frame, then capture it.';
             return cameraPreview.play();
           }).catch(function (error) {
+            if (requestId !== cameraRequestId || selectedVoterMethod !== 'scan') return;
             stopVoterCamera();
             cameraPanel.hidden = false;
             cameraStatus.textContent = error.name === 'NotAllowedError'
@@ -3653,9 +3673,11 @@
           canvas.width = Math.round(cameraPreview.videoWidth * scale);
           canvas.height = Math.round(cameraPreview.videoHeight * scale);
           canvas.getContext('2d').drawImage(cameraPreview, 0, 0);
+          var captureRequestId = cameraRequestId;
           captureButton.disabled = true;
           canvas.toBlob(function (blob) {
             captureButton.disabled = false;
+            if (captureRequestId !== cameraRequestId || selectedVoterMethod !== 'scan') return;
             if (!blob) {
               cameraStatus.textContent = 'Could not capture the card. Please try again.';
               return;
@@ -3672,6 +3694,10 @@
         btnVoterUpload.addEventListener('click', function () {
           selectVoterMethod('upload');
           voterFileInput.click();
+        });
+
+        btnVoterNone.addEventListener('click', function () {
+          selectVoterMethod('none');
         });
 
         window.addEventListener('beforeunload', stopVoterCamera);
@@ -3722,10 +3748,12 @@
           var note = document.getElementById('form-status');
           var btn  = pciForm.querySelector('.submit-btn');
 
-          /* Require a card image from either scan or upload. */
-          if (!hasVoterInput.value || !selectedVoterFile) {
+          /* Require an explicit choice; only card holders need an image. */
+          if (!hasVoterInput.value || (hasVoterInput.value === 'yes' && !selectedVoterFile)) {
             if (note) {
-              note.textContent = "Please scan or upload your voter's card.";
+              note.textContent = hasVoterInput.value === 'yes'
+                ? "Please scan or upload your voter's card."
+                : "Please scan or upload your voter's card, or choose I don't have a voter's card.";
               note.style.color = '#fca5a5';
             }
             document.getElementById('voter-scan-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3733,7 +3761,7 @@
           }
 
           /* Image quality is advisory; only enforce the upload-size limit. */
-          if (selectedVoterFile.size > MAX_CARD_UPLOAD_BYTES) {
+          if (hasVoterInput.value === 'yes' && selectedVoterFile.size > MAX_CARD_UPLOAD_BYTES) {
             if (note) {
               note.textContent = 'Your voter card image is too large. Please choose a file under 3 MB.';
               note.style.color = '#fca5a5';
@@ -3758,7 +3786,7 @@
           fd.append('lga',          document.getElementById('f-lga').value);
           fd.append('hasVoterCard', hasVoterInput.value);
 
-          fd.append('voterCardFile', selectedVoterFile);
+          if (hasVoterInput.value === 'yes') fd.append('voterCardFile', selectedVoterFile);
 
           /* Store key fields for thankyou.html summary */
           try {
@@ -3772,9 +3800,11 @@
             sessionStorage.setItem('pci_bank_name', document.getElementById('f-bank-name').value.trim());
             sessionStorage.setItem('pci_account_name', document.getElementById('f-account-name').value.trim());
             sessionStorage.setItem('pci_account_last4', '•••• ' + document.getElementById('f-account-number').value.trim().slice(-4));
-            sessionStorage.setItem('pci_reference', document.getElementById('f-reference').value.trim());
+            var referenceInput = document.getElementById('f-reference');
+            sessionStorage.setItem('pci_reference', referenceInput ? referenceInput.value.trim() : '');
             sessionStorage.setItem('pci_votercard',
-              (selectedVoterMethod === 'scan' ? 'Scanned (' : 'Uploaded (')
+              hasVoterInput.value === 'no' ? 'No Voter Card'
+                : (selectedVoterMethod === 'scan' ? 'Scanned (' : 'Uploaded (')
                 + selectedVoterFile.name + ')'
             );
           } catch(err) {}

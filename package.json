@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "node scripts/prepare-vercel-public.js"
+    "build": "node scripts/prepare-vercel-public.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1157.0",

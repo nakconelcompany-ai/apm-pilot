@@ -5,6 +5,10 @@ configured. In production, new voter-card files are stored in a private Neon
 Object Storage bucket. Locally, card files use disk storage; JSON is used for
 registrations only when `DATABASE_URL` is absent.
 
+Registrants can choose that they do not have a voter's card. These records store
+`hasVoterCard: "no"` and `voterCardFile: null`, and the admin dashboard displays
+"No Voter Card". Choosing scan or upload still requires a card image.
+
 ## Production environment
 
 1. Connect the Vercel project to Neon and make `DATABASE_URL` available to the

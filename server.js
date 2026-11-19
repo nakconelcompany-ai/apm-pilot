@@ -2,7 +2,7 @@
  * PCI Backend — server.js
  *
  * Endpoints:
- *   POST /api/register           — saves registrant + required voter card image
+ *   POST /api/register           — saves registrant + voter card status and optional image
  *   POST /api/check-image-clarity — runs server-side clarity check on an uploaded image
  *
  * Storage:
@@ -427,9 +427,9 @@ function constantTimeEqual(expected, provided) {
 }
 
 // ─── POST /api/register ───────────────────────────────────────────────────────
-// Accepts multipart/form-data with a required, size-limited voter card image.
+// Accepts multipart/form-data; a size-limited card image is required only for card holders.
 // Fields: name, phone, email, accountNumber, accountName, bankName, ward, unit, lga, hasVoterCard
-// File  : voterCardFile (required — scan or upload)
+// File  : voterCardFile (required when hasVoterCard is yes; omitted when no)
 
 app.post('/api/register', upload.single('voterCardFile'), async (req, res) => {
   const { name, phone, email, accountNumber, accountName, bankName, ward, unit, lga, hasVoterCard } = req.body || {};
@@ -470,7 +470,16 @@ app.post('/api/register', upload.single('voterCardFile'), async (req, res) => {
     });
   }
 
-  if (sanitise(hasVoterCard).toLowerCase() !== 'yes' || !req.file) {
+  const cleanHasVoterCard = sanitise(hasVoterCard).toLowerCase();
+  if (!['yes', 'no'].includes(cleanHasVoterCard)) {
+    await discardRequestUpload(req.file);
+    return res.status(400).json({
+      success: false,
+      message: "Please choose whether you have a voter's card."
+    });
+  }
+
+  if (cleanHasVoterCard === 'yes' && !req.file) {
     await discardRequestUpload(req.file);
     return res.status(400).json({
       success: false,
@@ -478,21 +487,31 @@ app.post('/api/register', upload.single('voterCardFile'), async (req, res) => {
     });
   }
 
+  if (cleanHasVoterCard === 'no' && req.file) {
+    await discardRequestUpload(req.file);
+    return res.status(400).json({
+      success: false,
+      message: "Remove the card image to register without a voter's card, or choose scan or upload."
+    });
+  }
+
   const cleanPhone = sanitise(phone);
   const recordId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   try {
-    const imageBuffer = req.file.buffer || await fs.promises.readFile(req.file.path);
-    if (!isValidVoterCardImage(req.file, imageBuffer)) {
-      await discardRequestUpload(req.file);
-      return res.status(400).json({
-        success: false,
-        message: 'The uploaded file is not a supported voter-card image. Please upload a valid JPG, PNG, or WebP image no larger than 3 MB.'
-      });
+    if (req.file) {
+      const imageBuffer = req.file.buffer || await fs.promises.readFile(req.file.path);
+      if (!isValidVoterCardImage(req.file, imageBuffer)) {
+        await discardRequestUpload(req.file);
+        return res.status(400).json({
+          success: false,
+          message: 'The uploaded file is not a supported voter-card image. Please upload a valid JPG, PNG, or WebP image no larger than 3 MB.'
+        });
+      }
     }
     const encryptedAccountNumber = cleanAccountNumber ? encryptAccountNumber(cleanAccountNumber) : null;
 
-    if (IS_VERCEL) {
+    if (IS_VERCEL && req.file) {
       const { client, bucket } = getObjectStorage();
 
       const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -536,7 +555,7 @@ app.post('/api/register', upload.single('voterCardFile'), async (req, res) => {
       ward: sanitise(ward),
       unit: sanitise(unit),
       lga: sanitise(lga),
-      hasVoterCard: sanitise(hasVoterCard).toLowerCase(),
+      hasVoterCard: cleanHasVoterCard,
       voterCardFile: fileInfo,
       createdAt: new Date().toISOString()
     };
