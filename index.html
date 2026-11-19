@@ -1176,6 +1176,8 @@
     /* ---------- VOTER CARD SCAN / UPLOAD ---------- */
     .voter-card-block {
       display: grid;
+      min-inline-size: 0;
+      margin: 0;
       gap: 14px;
       background: rgba(255, 255, 255, 0.08);
       border-radius: 18px;
@@ -1184,8 +1186,8 @@
       border: 1px solid rgba(255,255,255,.12);
     }
 
-    .voter-card-offset {
-      margin-top: clamp(24px, 4vw, 40px);
+    .voter-card-block[hidden] {
+      display: none;
     }
 
     .voter-card-question {
@@ -1224,11 +1226,6 @@
 
     .voter-method-card:active {
       transform: scale(.97);
-    }
-
-    .voter-method-card-none {
-      grid-column: 1 / -1;
-      min-height: 100px;
     }
 
     .voter-method-card[aria-pressed="true"] {
@@ -3017,7 +3014,7 @@
           <div class="form-head">
             <p class="eyebrow">Join the APM4Oyo Network</p>
             <h2>Voters benefit form</h2>
-            <p class="lede">Fill in your details to join the APM4Oyo network in your ward. Scan or upload your voter's card if you have one, or choose "I don't have a voter's card" to register without it.</p>
+            <p class="lede">Fill in your details to join the APM4Oyo network in your ward. You can register with or without a voter's card. Fields marked optional can be left blank.</p>
           </div>
 
           <form class="reg-form" id="pci-form">
@@ -3105,9 +3102,19 @@
             </div>
 
             <!-- ── Voter card status, scan or upload ─────────────── -->
-            <div class="voter-card-block voter-card-offset">
-              <p class="voter-card-question">Voter's card details</p>
-              <div class="voter-method-row" role="group" aria-label="Scan or upload your voter's card, or register without one">
+            <div class="field">
+              <label for="f-has-voter-card">Do you have a voter's card?</label>
+              <select id="f-has-voter-card" name="hasVoterCard" required aria-controls="voter-card-details" aria-describedby="voter-card-help">
+                <option value="" disabled selected>Select Yes or No</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+              <p class="form-note" id="voter-card-help">Select No to continue without scanning or uploading a card.</p>
+            </div>
+
+            <fieldset class="voter-card-block" id="voter-card-details" hidden disabled>
+              <legend class="voter-card-question">Voter's card details</legend>
+              <div class="voter-method-row" role="group" aria-label="Choose how to add your voter's card">
                 <button type="button" class="voter-method-card" id="voter-scan-btn" aria-pressed="false">
                   <span class="voter-method-icon" aria-hidden="true">▣</span>
                   <strong>Scan voter card</strong>
@@ -3118,12 +3125,7 @@
                   <strong>Upload voter card</strong>
                   <span>Choose an image or PDF from your device</span>
                 </button>
-                <button type="button" class="voter-method-card voter-method-card-none" id="voter-none-btn" aria-pressed="false">
-                  <strong>I don't have a voter's card</strong>
-                  <span>Continue without scanning or uploading a card</span>
-                </button>
               </div>
-              <input type="hidden" id="f-has-voter-card" name="hasVoterCard" value="">
 
               <div class="camera-panel" id="voter-camera-panel" hidden>
                 <video class="camera-preview" id="voter-camera-preview" autoplay playsinline muted
@@ -3151,7 +3153,7 @@
                 <span class="clarity-icon" aria-hidden="true" id="clarity-icon"></span>
                 <div class="clarity-text" id="clarity-text"></div>
               </div>
-            </div>
+            </fieldset>
 
             <label class="check check-consent" style="color:#e2f7ec; font-size:14.5px; display:flex; gap:12px; cursor:pointer; margin-top:4px;">
               <input type="checkbox" name="confirm" required style="margin-top:0; flex:none; width:18px; height:18px; accent-color:#10b981;">
@@ -3341,7 +3343,7 @@
         /* -- Voter card scan / upload ------------------------------------ */
         var btnVoterScan   = document.getElementById('voter-scan-btn');
         var btnVoterUpload = document.getElementById('voter-upload-btn');
-        var btnVoterNone   = document.getElementById('voter-none-btn');
+        var voterCardDetails = document.getElementById('voter-card-details');
         var uploadPanel    = document.getElementById('voter-upload-panel');
         var hasVoterInput  = document.getElementById('f-has-voter-card');
         var voterFileInput = document.getElementById('f-voter-card-file');
@@ -3385,10 +3387,8 @@
             if (method !== 'scan') stopVoterCamera();
           }
           selectedVoterMethod = method;
-          hasVoterInput.value = method === 'none' ? 'no' : 'yes';
           btnVoterScan.setAttribute('aria-pressed', method === 'scan' ? 'true' : 'false');
           btnVoterUpload.setAttribute('aria-pressed', method === 'upload' ? 'true' : 'false');
-          btnVoterNone.setAttribute('aria-pressed', method === 'none' ? 'true' : 'false');
           uploadPanel.classList.toggle('active', method === 'upload');
           cameraPanel.hidden = method !== 'scan' || !cameraStream;
           document.getElementById('form-status').textContent = '';
@@ -3413,6 +3413,22 @@
           clarityText.innerHTML   = '';
           imageIsClear = false;
         }
+
+        function updateVoterCardStatus() {
+          clearSelectedVoterFile();
+          stopVoterCamera();
+          selectedVoterMethod = '';
+          btnVoterScan.setAttribute('aria-pressed', 'false');
+          btnVoterUpload.setAttribute('aria-pressed', 'false');
+          uploadPanel.classList.remove('active');
+          cameraPanel.hidden = true;
+          voterCardDetails.hidden = hasVoterInput.value !== 'yes';
+          voterCardDetails.disabled = hasVoterInput.value !== 'yes';
+          document.getElementById('form-status').textContent = '';
+        }
+
+        hasVoterInput.addEventListener('change', updateVoterCardStatus);
+        updateVoterCardStatus();
 
         function canvasToJpeg(canvas, quality) {
           return new Promise(function (resolve, reject) {
@@ -3658,7 +3674,6 @@
           cameraPanel.hidden = true;
           if (selectedVoterMethod === 'scan' && !selectedVoterFile) {
             selectedVoterMethod = '';
-            hasVoterInput.value = '';
             btnVoterScan.setAttribute('aria-pressed', 'false');
           }
         });
@@ -3694,10 +3709,6 @@
         btnVoterUpload.addEventListener('click', function () {
           selectVoterMethod('upload');
           voterFileInput.click();
-        });
-
-        btnVoterNone.addEventListener('click', function () {
-          selectVoterMethod('none');
         });
 
         window.addEventListener('beforeunload', stopVoterCamera);
@@ -3753,10 +3764,10 @@
             if (note) {
               note.textContent = hasVoterInput.value === 'yes'
                 ? "Please scan or upload your voter's card."
-                : "Please scan or upload your voter's card, or choose I don't have a voter's card.";
+                : "Please select Yes or No for whether you have a voter's card.";
               note.style.color = '#fca5a5';
             }
-            document.getElementById('voter-scan-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            (hasVoterInput.value === 'yes' ? voterCardDetails : hasVoterInput).scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
           }
 
@@ -3799,7 +3810,8 @@
             sessionStorage.setItem('pci_unit',  document.getElementById('f-unit').value.trim());
             sessionStorage.setItem('pci_bank_name', document.getElementById('f-bank-name').value.trim());
             sessionStorage.setItem('pci_account_name', document.getElementById('f-account-name').value.trim());
-            sessionStorage.setItem('pci_account_last4', '•••• ' + document.getElementById('f-account-number').value.trim().slice(-4));
+            var accountNumber = document.getElementById('f-account-number').value.trim();
+            sessionStorage.setItem('pci_account_last4', accountNumber ? '•••• ' + accountNumber.slice(-4) : '');
             var referenceInput = document.getElementById('f-reference');
             sessionStorage.setItem('pci_reference', referenceInput ? referenceInput.value.trim() : '');
             sessionStorage.setItem('pci_votercard',

@@ -1407,7 +1407,7 @@
               <td style="font-weight:600; color:var(--green-light);">${escapeHtml(r.phone || 'N/A')}</td>
               <td style="white-space:nowrap;">
                 <div style="font-weight:600; white-space:nowrap;">${escapeHtml(r.lga || 'N/A')}</div>
-                <div class="user-sub">Ward: ${escapeHtml(r.ward || 'N/A')}</div>
+                <div class="user-sub">Ward: ${escapeHtml(r.ward || 'Not provided')}</div>
               </td>
               <td>
                 <span class="status-badge ${r.hasVoterCard === 'yes' ? 'badge-yes' : 'badge-no'}">
@@ -1419,9 +1419,9 @@
                   <button type="button" class="action-btn" onclick="openDocument('${r.id}')">View Image</button>
                 ` : '<span class="user-sub">No image</span>'}
               </td>
-              <td>${escapeHtml(r.bankName || 'N/A')}</td>
-              <td>${escapeHtml(r.accountName || 'N/A')}</td>
-              <td>${r.accountNumberLast4 ? `•••• ${escapeHtml(r.accountNumberLast4)}` : 'N/A'}</td>
+              <td>${escapeHtml(r.bankName || 'Not provided')}</td>
+              <td>${escapeHtml(r.accountName || 'Not provided')}</td>
+              <td>${r.accountNumberLast4 ? `•••• ${escapeHtml(r.accountNumberLast4)}` : 'Not provided'}</td>
               <td>
                 <div style="display:flex; gap:6px;">
                   <button class="action-btn" onclick="openDetail('${r.id}')">
@@ -1471,15 +1471,15 @@
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Bank Name</div>
-              <div class="dossier-val">${escapeHtml(record.bankName || 'N/A')}</div>
+              <div class="dossier-val">${escapeHtml(record.bankName || 'Not provided')}</div>
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Account Name</div>
-              <div class="dossier-val">${escapeHtml(record.accountName || 'N/A')}</div>
+              <div class="dossier-val">${escapeHtml(record.accountName || 'Not provided')}</div>
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Account Number</div>
-              <div class="dossier-val">${escapeHtml(record.accountNumber || 'N/A')}</div>
+              <div class="dossier-val">${escapeHtml(record.accountNumber || 'Not provided')}</div>
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Local Government Area (LGA)</div>
@@ -1487,7 +1487,11 @@
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Ward</div>
-              <div class="dossier-val">${escapeHtml(record.ward || 'N/A')}</div>
+              <div class="dossier-val">${escapeHtml(record.ward || 'Not provided')}</div>
+            </div>
+            <div class="dossier-item">
+              <div class="dossier-label">Polling Unit</div>
+              <div class="dossier-val">${escapeHtml(record.unit || 'Not provided')}</div>
             </div>
             <div class="dossier-item">
               <div class="dossier-label">Voter's Card Choice</div>

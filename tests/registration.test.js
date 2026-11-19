@@ -25,7 +25,10 @@ before(async () => {
     });
   `], {
     cwd: directory,
-    env: { PATH: process.env.PATH, ADMIN_USERNAME: 'test-admin', ADMIN_PASSWORD: 'test-password' },
+    env: {
+      PATH: process.env.PATH, ADMIN_USERNAME: 'test-admin', ADMIN_PASSWORD: 'test-password',
+      ACCOUNT_ENCRYPTION_KEY: 'ab'.repeat(32)
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   await new Promise((resolve, reject) => {
@@ -97,6 +100,47 @@ test('no-card registration persists an explicit no status and no file, and appea
     method: 'DELETE', headers: adminHeaders
   });
   assert.equal(deleted.status, 200);
+});
+
+test('no-card registration accepts every optional field blank and exposes it in admin', async () => {
+  const fields = { ward: '', unit: '', bankName: '', accountName: '', accountNumber: '' };
+  const result = await register({ fields });
+  assert.equal(result.response.status, 201);
+  const stored = JSON.parse(await fs.readFile(path.join(directory, 'data/registrations.json'), 'utf8'));
+  const record = stored.find(item => item.id === result.body.id);
+  assert.equal(record.hasVoterCard, 'no');
+  assert.equal(record.voterCardFile, null);
+  assert.equal(record.accountNumberEncrypted, null);
+  assert.equal(record.accountNumberLast4, '');
+  for (const key of ['ward', 'unit', 'bankName', 'accountName']) assert.equal(record[key], '');
+
+  const response = await fetch(baseUrl + '/api/admin/registrations/' + record.id, { headers: adminHeaders });
+  assert.equal(response.status, 200);
+  const { data } = await response.json();
+  assert.equal(data.hasVoterCard, 'no');
+  assert.equal(data.voterCardFile, null);
+  for (const key of Object.keys(fields)) assert.equal(data[key], '');
+});
+
+test('optional details supplied by a no-card registrant are saved and available in admin', async () => {
+  const fields = {
+    ward: 'Ward 4', unit: '012', bankName: 'Test Bank',
+    accountName: 'Registration Test', accountNumber: '0123456789'
+  };
+  const result = await register({ fields });
+  assert.equal(result.response.status, 201);
+  const response = await fetch(baseUrl + '/api/admin/registrations/' + result.body.id, { headers: adminHeaders });
+  const { data } = await response.json();
+  assert.equal(data.hasVoterCard, 'no');
+  assert.equal(data.voterCardFile, null);
+  for (const [key, value] of Object.entries(fields)) assert.equal(data[key], value);
+
+  const listing = await fetch(baseUrl + '/api/admin/registrations', { headers: adminHeaders });
+  const listed = (await listing.json()).data.find(item => item.id === result.body.id);
+  assert.equal(listed.unit, fields.unit);
+  assert.equal(listed.accountNumberLast4, '6789');
+  assert.equal(listed.accountNumber, undefined);
+  assert.equal(listed.accountNumberEncrypted, undefined);
 });
 
 test('card holders can still register with a valid image', async () => {

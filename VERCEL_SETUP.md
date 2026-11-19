@@ -5,9 +5,11 @@ configured. In production, new voter-card files are stored in a private Neon
 Object Storage bucket. Locally, card files use disk storage; JSON is used for
 registrations only when `DATABASE_URL` is absent.
 
-Registrants can choose that they do not have a voter's card. These records store
+The form asks whether registrants have a voter's card. Selecting Yes reveals
+the scan/upload details; selecting No allows submission without an image.
+Ward, polling unit, and bank details can all be left blank. No-card records store
 `hasVoterCard: "no"` and `voterCardFile: null`, and the admin dashboard displays
-"No Voter Card". Choosing scan or upload still requires a card image.
+"No Voter Card". Blank optional details display as "Not provided" in admin.
 
 ## Production environment
 
